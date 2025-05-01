@@ -60,7 +60,12 @@ class VoiceScreenClient:
                 time.sleep(1/15)
 
     def receive_screen(self):
-        self.sock_video_recv.bind(('', VIDEO_PORT))
+        try:
+            self.sock_video_recv.bind(('', VIDEO_PORT))
+        except OSError as e:
+            print(f"❌ Не удалось привязать порт {VIDEO_PORT}: {e}")
+            return
+
         buffer = b""
         print("▶️ Ожидаем кадры с экрана...")
         while self.running:
@@ -82,10 +87,12 @@ class VoiceScreenClient:
     def stop(self):
         self.running = False
 
+
 class App:
     def __init__(self, root):
         self.root = root
         self.client = None
+        self.client_running = False
         self.build_gui()
 
     def build_gui(self):
@@ -111,6 +118,10 @@ class App:
         self.stop_btn.pack()
 
     def start_client(self):
+        if self.client_running:
+            messagebox.showinfo("Уже работает", "Клиент уже запущен")
+            return
+
         ip = self.ip_entry.get()
         if not ip:
             messagebox.showerror("Ошибка", "Введите IP сервера")
@@ -121,12 +132,14 @@ class App:
             stream_screen=self.screen_send_var.get(),
             watch_screen=self.screen_recv_var.get()
         )
+        self.client_running = True
         self.start_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
 
     def stop_client(self):
         if self.client:
             self.client.stop()
+        self.client_running = False
         self.start_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
 
