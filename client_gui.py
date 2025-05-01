@@ -110,15 +110,35 @@ class VoiceClient:
         self.sock_chat.sendto(full_msg.encode('utf-8'), (self.ip, CHAT_PORT))
 
     def send_screen(self):
+        import time
+        target_fps = 1  # 🎯 Частота кадров
+        quality = 50  # 🖼️ JPEG качество (1–100)
+        width, height = 640, 360  # 📐 Разрешение
+
         with mss.mss() as sct:
             monitor = sct.monitors[1]
+            last_time = time.time()
+
             while self.running:
+                start = time.time()
                 img = np.array(sct.grab(monitor))
-                frame = cv2.resize(img, (320, 180))
-                _, encoded = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
+                frame = cv2.resize(img, (width, height))
+
+                _, encoded = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), quality])
                 data = encoded.tobytes()
+
                 for i in range(0, len(data), 1024):
-                    self.sock_video.sendto(data[i:i+1024], (self.ip, VIDEO_PORT))
+                    self.sock_video.sendto(data[i:i + 1024], (self.ip, VIDEO_PORT))
+
+                # 💡 Вывод FPS
+                end = time.time()
+                elapsed = end - start
+                fps = 1 / elapsed if elapsed > 0 else 0
+                print(f"📺 Стрим экрана: {fps:.1f} FPS, {width}x{height}")
+
+                # Ограничение частоты кадров
+                delay = max(0, 1 / target_fps - elapsed)
+                time.sleep(delay)
 
     def receive_screen(self):
         self.sock_video_recv.bind(('', VIDEO_PORT))
