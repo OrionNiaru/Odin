@@ -1,38 +1,50 @@
 import socket
 import threading
 
-PORT = 50007
-clients = {}
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.bind(("0.0.0.0", PORT))
+VOICE_PORT = 50007
+CHAT_PORT = 50008
 
-print(f"🟢 Сервер запущен на порту {PORT}")
+voice_clients = set()
+chat_clients = set()
 
-def relay():
+def handle_voice():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("0.0.0.0", VOICE_PORT))
+    print(f"🎙 Сервер голосового чата запущен на порту {VOICE_PORT}")
     while True:
-        try:
-            data, addr = sock.recvfrom(2048)
-            if addr not in clients:
-                clients[addr] = {"nickname": f"{addr[0]}:{addr[1]}"}
-                print(f"➕ Новый клиент: {clients[addr]['nickname']}")
+        data, addr = sock.recvfrom(2048)
+        if addr not in voice_clients:
+            voice_clients.add(addr)
+            print(f"➕ Новый голосовой клиент: {addr}")
+        for client in voice_clients:
+            if client != addr:
+                sock.sendto(data, client)
 
-            for client_addr in clients:
-                if client_addr != addr:
-                    sock.sendto(data, client_addr)
-        except Exception as e:
-            print(f"❌ Ошибка: {e}")
-
-threading.Thread(target=relay, daemon=True).start()
-
-try:
+def handle_chat():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("0.0.0.0", CHAT_PORT))
+    print(f"💬 Сервер чата запущен на порту {CHAT_PORT}")
     while True:
-        cmd = input("🔧 Введите 'list' для списка клиентов или 'exit' для выхода: ").strip()
-        if cmd == 'list':
-            print("👥 Подключённые клиенты:")
-            for i, (addr, info) in enumerate(clients.items(), 1):
-                print(f" {i}. {info['nickname']} @ {addr}")
-        elif cmd == 'exit':
-            print("🛑 Сервер остановлен")
-            break
-except KeyboardInterrupt:
-    print("\n🛑 Сервер завершён вручную")
+        data, addr = sock.recvfrom(1024)
+
+        if data == b"REGISTER":
+            if addr not in chat_clients:
+                chat_clients.add(addr)
+                print(f"🟢 Зарегистрирован чат-клиент {addr}")
+            continue
+        elif data == b"UNREGISTER":
+            if addr in chat_clients:
+                chat_clients.remove(addr)
+                print(f"🔴 Клиент вышел из чата: {addr}")
+            continue
+
+        print(f"💬 Получено сообщение от {addr}: {data.decode('utf-8')}")
+
+        # Рассылка всем, кроме отправителя
+        for client in chat_clients:
+            if client != addr:
+                sock.sendto(data, client)
+
+threading.Thread(target=handle_voice, daemon=True).start()
+threading.Thread(target=handle_chat, daemon=True).start()
+input("🟢 Сервер запущен. Нажмите Enter для выхода...\n")
