@@ -1,11 +1,8 @@
-# server.py
-# 26.31.136.13 mine
-# 26.107.218.160 niaru
 import socket
 import threading
 
-VOICE_PORT = 50007
-VIDEO_PORT = 60000
+VOICE_PORT = 50008  # Порт для аудио
+VIDEO_PORT = 60001  # Порт для видео
 
 voice_clients = set()
 video_clients = set()
