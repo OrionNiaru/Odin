@@ -21,7 +21,8 @@ class VoiceScreenClient:
         self.server_ip = server_ip
         self.audio = pyaudio.PyAudio()
         self.sock_voice = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.sock_video = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock_video_send = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock_video_recv = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.running = True
 
     def start(self, stream_screen=False, watch_screen=False):
@@ -55,33 +56,31 @@ class VoiceScreenClient:
                 data = encoded.tobytes()
                 for i in range(0, len(data), 1024):
                     chunk = data[i:i+1024]
-                    self.sock_video.sendto(chunk, (self.server_ip, VIDEO_PORT))
+                    self.sock_video_send.sendto(chunk, (self.server_ip, VIDEO_PORT))
                 time.sleep(1/15)
 
     def receive_screen(self):
-        print("▶️ Ожидаем кадры с экрана...")
-
-        self.sock_video.bind(('', VIDEO_PORT))
+        self.sock_video_recv.bind(('', VIDEO_PORT))
         buffer = b""
+        print("▶️ Ожидаем кадры с экрана...")
         while self.running:
             try:
-                chunk, _ = self.sock_video.recvfrom(1024)
+                chunk, _ = self.sock_video_recv.recvfrom(1024)
                 buffer += chunk
                 if len(buffer) > 50000:
                     frame = cv2.imdecode(np.frombuffer(buffer, dtype=np.uint8), cv2.IMREAD_COLOR)
                     if frame is not None:
-                        print("🖼 Кадр получен и декодирован!")
-                        cv2.imshow("Экран", frame)
+                        cv2.imshow("📺 Экран", frame)
                         if cv2.waitKey(1) == 27:
                             break
                     buffer = b""
-            except:
+            except Exception as e:
+                print("❌ Ошибка видео:", e)
                 break
         cv2.destroyAllWindows()
 
     def stop(self):
         self.running = False
-
 
 class App:
     def __init__(self, root):
