@@ -1,4 +1,6 @@
 # server.py
+# 26.31.136.13 mine
+# 26.107.218.160 niaru
 import socket
 import threading
 
