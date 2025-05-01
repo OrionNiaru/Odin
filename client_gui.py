@@ -13,7 +13,7 @@ PORT = 60000
 FRAME_WIDTH = 480
 FRAME_HEIGHT = 270
 JPEG_QUALITY = 40
-
+MAX_IMAGE_DGRAM = 10
 # Глобальные объекты для потоков и управления
 send_thread = None
 recv_thread = None
