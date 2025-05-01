@@ -180,7 +180,7 @@ class App:
         )
         self.client.start(
             stream_screen=self.screen_send_var.get(),
-            watch_screen=self.screen_recv_var.get()
+            watch_screen=self.screen_recv_var.get()  # Передаем состояние для просмотра экрана
         )
         self.client_running = True
         self.start_btn.config(state=tk.DISABLED)
@@ -192,7 +192,6 @@ class App:
         self.client_running = False
         self.start_btn.config(state=tk.NORMAL)
         self.stop_btn.config(state=tk.DISABLED)
-
 
 if __name__ == "__main__":
     root = tk.Tk()
