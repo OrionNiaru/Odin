@@ -1,29 +1,56 @@
 import socket
-import threading
+import struct
 
-VOICE_PORT = 50008  # Порт для аудио
-VIDEO_PORT = 60001  # Порт для видео
+# Настройки
+PORT = 60000  # порт для приема/передачи UDP
+MAX_DGRAM = 2**16  # максимальный размер датаграммы UDP
+# Чтобы избежать переполнения, полезная нагрузка ограничивается чуть меньше 65535&#8203;:contentReference[oaicite:3]{index=3}:
+MAX_IMAGE_DGRAM = MAX_DGRAM - 64  # ~65472 байт максимальный размер фрагмента изображения
 
-voice_clients = set()
-video_clients = set()
+# Создаем UDP-сокет и привязываем к порту
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.bind(("", PORT))
+print(f"Server started, listening on port {PORT}")
 
-sock_voice = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock_video = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+clients = []  # список адресов клиентов-получателей
 
-sock_voice.bind(("0.0.0.0", VOICE_PORT))
-sock_video.bind(("0.0.0.0", VIDEO_PORT))
+while True:
+    try:
+        data, addr = sock.recvfrom(MAX_DGRAM)
+    except KeyboardInterrupt:
+        print("Server stopped by user")
+        break
 
-def relay(sock, clients, name):
-    while True:
-        data, addr = sock.recvfrom(2048)
+    # Проверка на служебные сообщения регистрации
+    if data == b"REGISTER":
         if addr not in clients:
-            clients.add(addr)
-            print(f"➕ Новый {name} клиент: {addr}")
-        for client in clients:
-            if client != addr:
-                sock.sendto(data, client)
+            clients.append(addr)
+            print(f"[SERVER] REGISTER: клиент {addr} добавлен в список рассылки")
+        # отправлять подтверждение не требуется
+        continue
+    elif data == b"UNREGISTER":
+        if addr in clients:
+            clients.remove(addr)
+            print(f"[SERVER] UNREGISTER: клиент {addr} удалён из списка рассылки")
+        continue
 
-threading.Thread(target=relay, args=(sock_voice, voice_clients, "аудио"), daemon=True).start()
-threading.Thread(target=relay, args=(sock_video, video_clients, "видео"), daemon=True).start()
+    # Если это не служебное сообщение, считаем пакетом фрагмента кадра
+    # Логируем получение фрагмента (первые байты включают номер сегмента)
+    if len(data) > 0:
+        seg_flag = data[0]  # первый байт: флаг сегмента (количество оставшихся сегментов или 1 для последнего)
+    else:
+        seg_flag = None
+    print(f"[SERVER] Получен фрагмент от {addr}: размер {len(data)} байт, seg_flag={seg_flag}")
 
-input("🎤 Сервер работает. Нажми Enter для выхода...\n")
+    # Пересылка фрагмента всем клиентам (кроме отправителя)
+    # Если клиентов нет, пакет просто игнорируется
+    for client_addr in clients:
+        if client_addr == addr:
+            continue  # не отправляем обратно отправителю
+        try:
+            sock.sendto(data, client_addr)
+        except Exception as e:
+            print(f"[SERVER] Ошибка отправки клиенту {client_addr}: {e}")
+    if clients:
+        # Логируем факт ретрансляции
+        print(f"[SERVER] Фрагмент от {addr} разослан {len(clients) - (1 if addr in clients else 0)} получателям")
