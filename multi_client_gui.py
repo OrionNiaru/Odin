@@ -59,6 +59,8 @@ class VoiceScreenClient:
                 time.sleep(1/15)
 
     def receive_screen(self):
+        print("▶️ Ожидаем кадры с экрана...")
+
         self.sock_video.bind(('', VIDEO_PORT))
         buffer = b""
         while self.running:
@@ -68,6 +70,7 @@ class VoiceScreenClient:
                 if len(buffer) > 50000:
                     frame = cv2.imdecode(np.frombuffer(buffer, dtype=np.uint8), cv2.IMREAD_COLOR)
                     if frame is not None:
+                        print("🖼 Кадр получен и декодирован!")
                         cv2.imshow("Экран", frame)
                         if cv2.waitKey(1) == 27:
                             break
