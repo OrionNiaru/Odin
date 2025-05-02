@@ -13,11 +13,10 @@ DEFAULT_PORT = 50007
 SETTINGS_FILE = "settings.json"
 
 class VoiceClient:
-    def __init__(self, server_ip, port, nickname, device_index):
+    def __init__(self, server_ip, port, nickname):
         self.server_ip = server_ip
         self.port = port
         self.nickname = nickname
-        self.device_index = device_index
         self.audio = pyaudio.PyAudio()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.running = True
@@ -29,7 +28,7 @@ class VoiceClient:
 
     def send_voice(self):
         stream = self.audio.open(format=FORMAT, channels=CHANNELS, rate=RATE,
-                                 input=True, frames_per_buffer=CHUNK, input_device_index=self.device_index)
+                                 input=True, frames_per_buffer=CHUNK)
         while self.running:
             data = stream.read(CHUNK, exception_on_overflow=False)
             if not self.muted:
@@ -50,19 +49,17 @@ class VoiceClient:
         self.muted = not self.muted
         return self.muted
 
-
 class App:
     def __init__(self, root):
         self.root = root
         self.client = None
         self.client_running = False
-        self.audio = pyaudio.PyAudio()
         self.build_gui()
         self.load_settings()
 
     def build_gui(self):
         self.root.title("Голосовой чат")
-        self.root.geometry("400x400")
+        self.root.geometry("400x350")
 
         ttk.Label(self.root, text="IP сервера:").pack(pady=2)
         self.ip_entry = ttk.Entry(self.root)
@@ -76,12 +73,6 @@ class App:
         ttk.Label(self.root, text="Никнейм:").pack(pady=2)
         self.name_entry = ttk.Entry(self.root)
         self.name_entry.pack()
-
-        ttk.Label(self.root, text="Микрофон:").pack(pady=2)
-        self.device_var = tk.StringVar()
-        self.device_menu = ttk.Combobox(self.root, textvariable=self.device_var, state="readonly")
-        self.device_menu.pack(pady=2)
-        self.populate_devices()
 
         self.status_label = ttk.Label(self.root, text="Статус: 🔴 Отключён")
         self.status_label.pack(pady=5)
@@ -100,16 +91,6 @@ class App:
         self.mute_btn = ttk.Button(btn_frame, text="Mute", command=self.toggle_mute, state=tk.DISABLED)
         self.mute_btn.pack(side="left", padx=5)
 
-    def populate_devices(self):
-        devices = []
-        for i in range(self.audio.get_device_count()):
-            info = self.audio.get_device_info_by_index(i)
-            if info["maxInputChannels"] > 0:
-                devices.append(f"{info['name'].encode('windows-1251').decode('utf-8')} (#{i})")
-        self.device_menu['values'] = devices
-        if devices:
-            self.device_menu.current(0)
-
     def start_client(self):
         if self.client_running:
             self.log("Клиент уже запущен")
@@ -118,9 +99,8 @@ class App:
         ip = self.ip_entry.get().strip()
         port = int(self.port_entry.get().strip())
         nickname = self.name_entry.get().strip() or "Anonymous"
-        device_index = int(self.device_menu.get().split('#')[-1][:-1])
 
-        self.client = VoiceClient(ip, port, nickname, device_index)
+        self.client = VoiceClient(ip, port, nickname)
         self.client.start()
         self.client_running = True
         self.start_btn.config(state=tk.DISABLED)
@@ -156,8 +136,7 @@ class App:
         settings = {
             "ip": self.ip_entry.get().strip(),
             "port": self.port_entry.get().strip(),
-            "nickname": self.name_entry.get().strip(),
-            "device": self.device_menu.get()
+            "nickname": self.name_entry.get().strip()
         }
         with open(SETTINGS_FILE, 'w') as f:
             json.dump(settings, f)
@@ -172,9 +151,6 @@ class App:
                 self.port_entry.insert(0, settings.get("port", str(DEFAULT_PORT)))
                 self.name_entry.delete(0, tk.END)
                 self.name_entry.insert(0, settings.get("nickname", ""))
-                device = settings.get("device", "")
-                if device in self.device_menu['values']:
-                    self.device_menu.set(device)
         except:
             pass
 
