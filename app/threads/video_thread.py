@@ -16,9 +16,10 @@ class VideoThread(QThread):
         self.watch_screen = watch_screen
         self.use_webcam = use_webcam
         self.running = True
+        self.cap = None
 
         if not self.watch_screen and self.use_webcam:
-            self.cap = cv2.VideoCapture(1, cv2.CAP_DSHOW)
+            self.cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)  # Пробуем использовать камеру 0 (если она есть)
 
     def run(self):
         if self.watch_screen:
@@ -27,7 +28,7 @@ class VideoThread(QThread):
                 return
 
             with mss.mss() as sct:
-                monitor = sct.monitors[1]
+                monitor = sct.monitors[1]  # Используем первый монитор
                 try:
                     while self.running:
                         screenshot = np.array(sct.grab(monitor))
@@ -38,8 +39,12 @@ class VideoThread(QThread):
                 except Exception as e:
                     print(f"Ошибка в потоке: {e}")
         elif self.use_webcam:
+            if self.cap is None or not self.cap.isOpened():
+                print("Не удалось открыть вебкамеру.")
+                return
+
             try:
-                while self.running and self.cap.isOpened():
+                while self.running:
                     ret, frame = self.cap.read()
                     if ret:
                         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -51,7 +56,7 @@ class VideoThread(QThread):
 
     def stop(self):
         self.running = False
-        if hasattr(self, "cap"):
-            self.cap.release()
+        if self.cap:
+            self.cap.release()  # Освобождаем захват
         self.quit()
         self.wait()

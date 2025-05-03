@@ -26,9 +26,9 @@ class MainWindow(QMainWindow):
 
         # IP и Порт
         top_layout = QHBoxLayout()
-        self.ip_entry = QLineEdit()
+        self.ip_entry = QLineEdit('26.107.218.160')
         self.ip_entry.setPlaceholderText("IP сервера")
-        self.port_entry = QLineEdit()
+        self.port_entry = QLineEdit('5000')
         self.port_entry.setPlaceholderText("Порт")
         self.start_btn = QPushButton("Запуск")
         self.start_btn.clicked.connect(self.start_clicked)
@@ -155,27 +155,27 @@ class MainWindow(QMainWindow):
 
     def start_video(self):
         self.log_area.append("🎥 Включение вебкамеры...")
-        if not self.video_thread or not self.video_thread.is_alive():
+        if self.video_thread is None:
             self.video_thread = VideoThread(watch_screen=False, use_webcam=True)
             self.video_thread.frame_received.connect(self.update_video_frame)
             self.video_thread.start()
 
     def stop_video(self):
         self.log_area.append("🎥 Выключение вебкамеры...")
-        if self.video_thread and self.video_thread.is_alive():
+        if self.video_thread:
             self.video_thread.stop()
             self.video_thread = None
 
     def start_screen(self):
         self.log_area.append("🖥 Включение демонстрации экрана...")
-        if not self.video_thread or not self.video_thread.is_alive():
+        if self.video_thread is None:
             self.video_thread = VideoThread(watch_screen=True, use_webcam=False)
             self.video_thread.frame_received.connect(self.update_video_frame)
             self.video_thread.start()
 
     def stop_screen(self):
         self.log_area.append("🖥 Выключение демонстрации экрана...")
-        if self.video_thread and self.video_thread.is_alive():
+        if self.video_thread:
             self.video_thread.stop()
             self.video_thread = None
 
@@ -194,7 +194,7 @@ class MainWindow(QMainWindow):
             self.message_input.clear()
             # Здесь может быть: self.client.send_message(message)
 
-    def closeEvent(self, event):
+    def close_event(self, event):
         # Закрываем все потоки перед закрытием окна
         if self.video_thread:
             self.video_thread.stop()
