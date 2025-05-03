@@ -1,97 +1,53 @@
-import pyaudio
-import threading
 import socket
-import numpy as np
-from PyQt5.QtCore import pyqtSignal, QThread
+import threading
+import time
 
-class AudioThread(QThread):
-    audio_received = pyqtSignal(np.ndarray)  # Сигнал для передачи аудио в основной поток
 
+class AudioThread(threading.Thread):
     def __init__(self, server_ip, server_port):
         super().__init__()
         self.server_ip = server_ip
         self.server_port = server_port
-        self.running = True
-        self.audio_socket = None
-        self.p = pyaudio.PyAudio()
-
-        # Настройки для захвата аудио
-        self.chunk_size = 1024
-        self.sample_format = pyaudio.paInt16
-        self.channels = 1
-        self.rate = 44100
+        self.client_socket = None
+        self.running = True  # Изначально поток будет работать
 
     def run(self):
+        """Запуск работы потока."""
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            # Настройка потока для записи аудио
-            stream = self.p.open(format=self.sample_format,
-                                 channels=self.channels,
-                                 rate=self.rate,
-                                 input=True,
-                                 frames_per_buffer=self.chunk_size)
-            self.audio_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.audio_socket.connect((self.server_ip, self.server_port))
-            print("Audio stream started.")
+            # Устанавливаем соединение с сервером
+            self.client_socket.connect((self.server_ip, self.server_port))
+            print("Audio client connected to server")
 
             while self.running:
-                # Чтение аудио данных с микрофона
-                audio_data = stream.read(self.chunk_size)
+                # Здесь вставьте код для записи и отправки аудио
+                data = b"Example audio chunk"  # Пример данных
+                self.send_audio_data(data)
+                # Можно добавить паузу, чтобы не перегружать процесс
+                time.sleep(0.5)
 
-                # Отправляем данные на сервер
-                self.audio_socket.send(audio_data)
+        except socket.error as e:
+            print(f"Audio thread socket error: {e}")
+        finally:
+            self.close_socket()
 
-                # Отправляем сигнал в основной поток для обработки
-                self.audio_received.emit(np.frombuffer(audio_data, dtype=np.int16))
-
-        except Exception as e:
-            print(f"Ошибка в потоке AudioThread: {e}")
-
-    def stop(self):
-        self.running = False
-        self.audio_socket.close()
-        self.p.terminate()
-        print("Audio stream stopped.")
-
-
-class AudioReceiverThread(QThread):
-    def __init__(self, server_ip, server_port):
-        super().__init__()
-        self.server_ip = server_ip
-        self.server_port = server_port
-        self.running = True
-        self.p = pyaudio.PyAudio()
-
-        # Настройки для воспроизведения аудио
-        self.chunk_size = 1024
-        self.sample_format = pyaudio.paInt16
-        self.channels = 1
-        self.rate = 44100
-
-    def run(self):
+    def send_audio_data(self, data):
+        """Отправка аудио данных на сервер."""
         try:
-            # Настройка потока для воспроизведения аудио
-            stream = self.p.open(format=self.sample_format,
-                                 channels=self.channels,
-                                 rate=self.rate,
-                                 output=True,
-                                 frames_per_buffer=self.chunk_size)
+            self.client_socket.sendall(data)
+        except socket.error as e:
+            print(f"Error sending audio data: {e}")
+            self.close_socket()
 
-            audio_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            audio_socket.bind((self.server_ip, self.server_port))
-            print("Audio receiver started.")
-
-            while self.running:
-                # Получаем данные с сервера
-                audio_data, _ = audio_socket.recvfrom(self.chunk_size)
-
-                # Воспроизводим аудио
-                stream.write(audio_data)
-
-        except Exception as e:
-            print(f"Ошибка в потоке AudioReceiverThread: {e}")
+    def close_socket(self):
+        """Закрытие сокета при завершении работы потока."""
+        if self.client_socket:
+            self.client_socket.close()
+            self.client_socket = None
+            print("Socket closed.")
 
     def stop(self):
+        """Остановка потока."""
         self.running = False
-        self.p.terminate()
-        print("Audio receiver stopped.")
-
+        self.close_socket()
+        print("Audio thread stopped.")
