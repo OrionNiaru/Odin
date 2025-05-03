@@ -56,7 +56,7 @@ class VideoThread(QThread):
 
     def stop(self):
         self.running = False
-        if self.cap:
-            self.cap.release()  # Освобождаем захват
+        if hasattr(self, "cap"):
+            self.cap.release()
         self.quit()
         self.wait()

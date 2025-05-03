@@ -14,6 +14,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("🐾 Кото-Чат UwU")
         self.setGeometry(100, 100, 1000, 600)
+        self.client_socket = None
         self.video_thread = None
         self.audio_thread = None
         self.audio_receiver_thread = None
@@ -26,7 +27,7 @@ class MainWindow(QMainWindow):
 
         # IP и Порт
         top_layout = QHBoxLayout()
-        self.ip_entry = QLineEdit('26.107.218.160')
+        self.ip_entry = QLineEdit('')
         self.ip_entry.setPlaceholderText("IP сервера")
         self.port_entry = QLineEdit('5000')
         self.port_entry.setPlaceholderText("Порт")
@@ -106,6 +107,15 @@ class MainWindow(QMainWindow):
 
         self.log_area.append(f"🚀 Старт: {nickname} ({ip}:{port})")
 
+        # Создаем сокет и подключаемся к серверу
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            self.client_socket.connect((ip, port))
+            self.log_area.append("✅ Соединение с сервером установлено")
+        except Exception as e:
+            self.log_area.append(f"❌ Ошибка соединения с сервером: {e}")
+            return
+
         if self.checkbox_audio.isChecked():
             self.start_audio_thread(ip, port)
             self.log_area.append("🎧 Аудио поток запущен")
@@ -122,6 +132,23 @@ class MainWindow(QMainWindow):
             self.video_thread.frame_received.connect(self.update_video_frame)
             self.video_thread.start()
             self.log_area.append("🎥 Видео поток запущен")
+
+    def send_message(self):
+        message = self.message_input.text()
+        if message:
+            nickname = self.nickname_entry.text()
+            if not nickname:
+                self.chat_area.append("❌ Введите ник.")
+                return
+            self.chat_area.append(f"{nickname}: {message}")
+            self.message_input.clear()
+
+            # Отправляем сообщение на сервер
+            if self.client_socket:
+                message_data = f"message:{message}".encode('utf-8')
+                self.client_socket.send(message_data)
+            else:
+                self.log_area.append("❌ Ошибка: сокет не подключен")
 
     def toggle_video(self, checked):
         if checked:
@@ -161,10 +188,9 @@ class MainWindow(QMainWindow):
             self.video_thread.start()
 
     def stop_video(self):
-        self.log_area.append("🎥 Выключение вебкамеры...")
-        if self.video_thread:
-            self.video_thread.stop()
-            self.video_thread = None
+        if self.cap:
+            self.cap.release()  # Освобождение видеопотока
+            self.cap = None
 
     def start_screen(self):
         self.log_area.append("🖥 Включение демонстрации экрана...")
@@ -183,19 +209,7 @@ class MainWindow(QMainWindow):
         self.video_label.setPixmap(QPixmap.fromImage(image).scaled(
             self.video_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
-    def send_message(self):
-        message = self.message_input.text()
-        if message:
-            nickname = self.nickname_entry.text()
-            if not nickname:
-                self.chat_area.append("❌ Введите ник.")
-                return
-            self.chat_area.append(f"{nickname}: {message}")
-            self.message_input.clear()
-            # Здесь может быть: self.client.send_message(message)
-
     def close_event(self, event):
-        # Закрываем все потоки перед закрытием окна
         if self.video_thread:
             self.video_thread.stop()
         if self.audio_thread:
